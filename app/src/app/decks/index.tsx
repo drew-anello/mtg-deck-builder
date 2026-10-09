@@ -80,7 +80,10 @@ export default function DecksScreen() {
           </View>
         </Card>
       ) : (
-        <Button label="New deck" onPress={() => setCreating(true)} />
+        <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+          <Button label="Build from my collection" onPress={() => router.push('/decks/build')} style={{ flex: 1 }} />
+          <Button label="New deck" kind="secondary" onPress={() => setCreating(true)} />
+        </View>
       )}
     </View>
   );

@@ -22,6 +22,8 @@ export interface Card {
   set: string;
   collectorNumber: string;
   edhrecRank?: number;
+  /** When this data (including prices) was fetched, ms since epoch. Scryfall updates prices about daily. */
+  fetchedAt?: number;
 }
 
 interface ScryfallCard {
@@ -109,6 +111,7 @@ export function toCard(c: ScryfallCard): Card {
     set: c.set,
     collectorNumber: c.collector_number,
     edhrecRank: c.edhrec_rank,
+    fetchedAt: Date.now(),
   };
 }
 

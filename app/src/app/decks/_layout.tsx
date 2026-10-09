@@ -6,6 +6,7 @@ export default function DecksLayout() {
   return (
     <Stack screenOptions={{ headerShown: Platform.OS !== 'web' }}>
       <Stack.Screen name="index" options={{ title: 'Decks', headerShown: false }} />
+      <Stack.Screen name="build" options={{ title: 'Build from collection' }} />
       <Stack.Screen name="[id]/index" options={{ title: 'Deck' }} />
       <Stack.Screen name="[id]/search" options={{ title: 'Add cards' }} />
     </Stack>
