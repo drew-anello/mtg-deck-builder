@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCsv } from './csv';
 import { toCardKingdomList, toTcgplayerMassEntry } from './massEntry';
 import { findMissing } from './missing';
-import { parseManaBoxCsv } from './manabox';
+import { looksLikeManaBoxCsv, parseManaBoxCsv } from './manabox';
 
 const CSV = [
   'Name,Set code,Set name,Collector number,Foil,Rarity,Quantity,ManaBox ID,Scryfall ID,Purchase price,Misprint,Altered,Condition,Language,Purchase price currency',
@@ -69,5 +69,26 @@ describe('mass entry formatters', () => {
   });
   it('formats Card Kingdom lines', () => {
     expect(toCardKingdomList(cards)).toBe('1 Lightning Bolt\n1 Sol Ring');
+  });
+});
+
+describe('tab-separated pastes', () => {
+  it('parses a ManaBox export that arrived tab-separated', () => {
+    const tsv = ['Name\tSet code\tQuantity\tFoil', 'Sol Ring\tc21\t2\tnormal', 'Fire // Ice\tmh2\t1\tfoil'].join('\n');
+    expect(looksLikeManaBoxCsv(tsv)).toBe(true);
+    const entries = parseManaBoxCsv(tsv);
+    expect(entries).toMatchObject([
+      { name: 'Sol Ring', quantity: 2, setCode: 'c21', foil: false },
+      { name: 'Fire // Ice', quantity: 1, foil: true },
+    ]);
+  });
+});
+
+describe('looksLikeManaBoxCsv', () => {
+  it('tells a ManaBox export from a plain card list', () => {
+    expect(looksLikeManaBoxCsv(CSV)).toBe(true);
+    expect(looksLikeManaBoxCsv('\n\nName,Quantity\nSol Ring,1')).toBe(true);
+    expect(looksLikeManaBoxCsv('2 Sol Ring\n1 Arcane Signet')).toBe(false);
+    expect(looksLikeManaBoxCsv('Name\nSol Ring')).toBe(false);
   });
 });

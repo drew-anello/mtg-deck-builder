@@ -1,4 +1,4 @@
-import { parseCsv } from './csv';
+import { detectDelimiter, parseCsv } from './csv';
 import type { CollectionEntry } from './types';
 
 /**
@@ -10,7 +10,8 @@ import type { CollectionEntry } from './types';
  * TODO: verify against a real export from the user's account.
  */
 export function parseManaBoxCsv(text: string): CollectionEntry[] {
-  const rows = parseCsv(text);
+  // Pasted exports sometimes arrive tab-separated, so don't assume commas.
+  const rows = parseCsv(text, detectDelimiter(text));
   if (rows.length < 2) return [];
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
@@ -50,4 +51,10 @@ export function parseManaBoxCsv(text: string): CollectionEntry[] {
     });
   }
   return entries;
+}
+
+/** A ManaBox export has a header row with at least Name and Quantity columns. */
+export function looksLikeManaBoxCsv(text: string): boolean {
+  const first = text.split(/\r?\n/).find((l) => l.trim() !== '')?.toLowerCase() ?? '';
+  return /[,\t;]/.test(first) && first.includes('name') && first.includes('quantity');
 }

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, Platform, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +9,7 @@ import { Badge, Button, Card, CardRow, Input, Page, WEB_TOP, money } from '@/com
 import { Spacing } from '@/constants/theme';
 import { cardKey } from '@/core/scryfall';
 import { pickTextFiles } from '@/lib/readPicked';
+import { looksLikeManaBoxCsv } from '@/core/manabox';
 import { allEntries, useCollection } from '@/store/collection';
 import { useCards } from '@/store/cards';
 
@@ -29,6 +31,9 @@ export default function CollectionScreen() {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const importText = useCollection((s) => s.importText);
   const refreshStale = useCards((s) => s.refreshStale);
 
   const rows = useMemo<Row[]>(() => {
@@ -87,6 +92,68 @@ export default function CollectionScreen() {
     }
   }
 
+  // On web, ⌘V/Ctrl+V with a *file* on the clipboard (copied from Finder or another device) does nothing in a
+  // text box, so catch it here and import the file directly. Plain-text pastes are left alone.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onDocPaste = async (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      if (files.length === 0) return;
+      e.preventDefault();
+      setMessage(null);
+      setBusy(true);
+      try {
+        let rows = 0;
+        for (const f of files) {
+          const text = await f.text();
+          if (looksLikeManaBoxCsv(text)) rows += (await importCsv(f.name, text)).cards;
+          else rows += (await importText(text)).cards;
+        }
+        setMessage({ text: `Imported ${rows} rows from ${files.length} pasted file${files.length === 1 ? '' : 's'}.` });
+        setPasting(false);
+      } catch (err) {
+        setMessage({ text: (err as Error).message, error: true });
+      } finally {
+        setBusy(false);
+      }
+    };
+    document.addEventListener('paste', onDocPaste);
+    return () => document.removeEventListener('paste', onDocPaste);
+  }, [importCsv, importText]);
+
+  async function onPasteFromClipboard() {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text.trim()) {
+        setPasted(text);
+        setMessage(null);
+      } else {
+        setMessage({
+          text: 'The clipboard has no text. If you copied a file, press ⌘V / Ctrl+V on this screen to import it, or use “Import another CSV”.',
+          error: true,
+        });
+      }
+    } catch (e) {
+      setMessage({ text: `Couldn’t read the clipboard: ${(e as Error).message}`, error: true });
+    }
+  }
+
+  async function onPaste() {
+    setMessage(null);
+    setBusy(true);
+    try {
+      const r = await importText(pasted);
+      const bad = r.notFound.length ? `; didn't recognize ${r.notFound.slice(0, 5).join(', ')}${r.notFound.length > 5 ? '…' : ''}` : '';
+      setMessage({ text: `Added ${r.cards} ${r.kind === 'csv' ? 'rows from the pasted CSV' : 'cards from your list'}${bad}.`, error: false });
+      setPasted('');
+      setPasting(false);
+    } catch (e) {
+      setMessage({ text: (e as Error).message, error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onRefresh() {
     setRefreshing(true);
     setMessage(null);
@@ -116,7 +183,28 @@ export default function CollectionScreen() {
           onPress={onImport}
           loading={busy}
         />
-        <Button label="Add cards by hand" kind="secondary" onPress={() => router.push('/collection/add')} />
+        {pasting ? (
+          <View style={{ gap: Spacing.two }}>
+            <Input
+              placeholder={'Paste a ManaBox CSV, or a list like:\n2 Sol Ring\n1 Arcane Signet (C21) 297'}
+              value={pasted}
+              onChangeText={setPasted}
+              multiline
+              autoCapitalize="none"
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+              <Button label="Add to collection" onPress={onPaste} loading={busy} disabled={!pasted.trim()} style={{ flex: 1 }} />
+              <Button label="Cancel" kind="secondary" onPress={() => setPasting(false)} />
+            </View>
+            <Button label="Paste from clipboard" kind="secondary" onPress={onPasteFromClipboard} />
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+            <Button label="Paste a list" kind="secondary" onPress={() => setPasting(true)} style={{ flex: 1 }} />
+            <Button label="Add cards by hand" kind="secondary" onPress={() => router.push('/collection/add')} style={{ flex: 1 }} />
+          </View>
+        )}
         {progress ? (
           <ThemedText type="small" themeColor="textSecondary">
             Loading card data… {progress.done}/{progress.total}

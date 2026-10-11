@@ -12,7 +12,8 @@ import { BRACKET_LABEL } from '@/core/combos';
 import { cardKey, searchCards, type Card as CardData } from '@/core/scryfall';
 import { canBeCommander, sortColors } from '@/core/validate';
 import { useOwned } from '@/hooks/use-owned';
-import { openUrl } from '@/lib/links';
+import { toPlainList } from '@/core/decklist';
+import { copyText, openUrl } from '@/lib/links';
 import { useCards } from '@/store/cards';
 import { useDecks } from '@/store/decks';
 
@@ -216,6 +217,7 @@ function Result({
   onBack: () => void;
 }) {
   const { result, warnings } = output;
+  const [copied, setCopied] = useState(false);
   const stats = useMemo(() => {
     let ownedCount = 0;
     let missing = 0;
@@ -254,6 +256,17 @@ function Result({
           <Button label="Create this deck" onPress={onCreate} style={{ flex: 1 }} />
           <Button label="Change options" kind="secondary" onPress={onBack} />
         </View>
+        <Button
+          label={copied ? 'Copied!' : 'Copy decklist'}
+          kind="secondary"
+          onPress={async () => {
+            const list = toPlainList([{ name: commander.name, quantity: 1 }, ...result.picks.map((p) => ({ name: p.name, quantity: p.quantity }))]);
+            if (await copyText(list)) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }
+          }}
+        />
       </Card>
 
       {result.combos.length > 0 ? (
